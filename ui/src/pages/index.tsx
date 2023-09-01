@@ -1,31 +1,14 @@
 
 import Head from 'next/head';
 import Image from 'next/image';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import GradientBG from '../components/GradientBG.js';
 import styles from '../styles/Home.module.css';
 import heroMinaLogo from '../../public/assets/hero-mina-logo.svg';
 import arrowRightSmall from '../../public/assets/arrow-right-small.svg';
 
 export default function Home() {
-  useEffect(() => {
-    (async () => {
-      const { Mina, PublicKey } = await import('snarkyjs');
-      const { Add } = await import('../../../contracts/build/src/');
-
-      // Update this to use the address (public key) for your zkApp account.
-      // To try it out, you can try this address for an example "Add" smart contract that we've deployed to
-      // Berkeley Testnet B62qkwohsqTBPsvhYE8cPZSpzJMgoKn4i1LQRuBAtVXWpaT4dgH6WoA.
-      const zkAppAddress = '';
-      // This should be removed once the zkAppAddress is updated.
-      if (!zkAppAddress) {
-        console.error(
-          'The following error is caused because the zkAppAddress has an empty string as the public key. Update the zkAppAddress with the public key for your zkApp account, or try this address for an example "Add" smart contract that we deployed to Berkeley Testnet: B62qkwohsqTBPsvhYE8cPZSpzJMgoKn4i1LQRuBAtVXWpaT4dgH6WoA'
-        );
-      }
-      //const zkApp = new Add(PublicKey.fromBase58(zkAppAddress))
-    })();
-  }, []);
+  const [add, setAdd] = useState<any>()
 
   return (
     <>
@@ -36,114 +19,52 @@ export default function Home() {
       </Head>
       <GradientBG>
         <main className={styles.main}>
-          <div className={styles.center}>
-            <a
-              href="https://minaprotocol.com/"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <Image
-                className={styles.logo}
-                src={heroMinaLogo}
-                alt="Mina Logo"
-                width="191"
-                height="174"
-                priority
-              />
-            </a>
-            <p className={styles.tagline}>
-              built with
-              <code className={styles.code}> SnarkyJS</code>
-            </p>
-          </div>
-          <p className={styles.start}>
-            Get started by editing
-            <code className={styles.code}> src/pages/index.js</code> or <code className={styles.code}> src/pages/index.tsx</code>
-          </p>
-          <div className={styles.grid}>
-            <a
-              href="https://docs.minaprotocol.com/zkapps"
-              className={styles.card}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <h2>
-                <span>DOCS</span>
-                <div>
-                  <Image
-                    src={arrowRightSmall}
-                    alt="Mina Logo"
-                    width={16}
-                    height={16}
-                    priority
-                  />
-                </div>
-              </h2>
-              <p>Explore zkApps, how to build one, and in-depth references</p>
-            </a>
-            <a
-              href="https://docs.minaprotocol.com/zkapps/tutorials/hello-world"
-              className={styles.card}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <h2>
-                <span>TUTORIALS</span>
-                <div>
-                  <Image
-                    src={arrowRightSmall}
-                    alt="Mina Logo"
-                    width={16}
-                    height={16}
-                    priority
-                  />
-                </div>
-              </h2>
-              <p>Learn with step-by-step SnarkyJS tutorials</p>
-            </a>
-            <a
-              href="https://discord.gg/minaprotocol"
-              className={styles.card}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <h2>
-                <span>QUESTIONS</span>
-                <div>
-                  <Image
-                    src={arrowRightSmall}
-                    alt="Mina Logo"
-                    width={16}
-                    height={16}
-                    priority
-                  />
-                </div>
-              </h2>
-              <p>Ask questions on our Discord server</p>
-            </a>
-            <a
-              href="https://docs.minaprotocol.com/zkapps/how-to-deploy-a-zkapp"
-              className={styles.card}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <h2>
-                <span>DEPLOY</span>
-                <div>
-                  <Image
-                    src={arrowRightSmall}
-                    alt="Mina Logo"
-                    width={16}
-                    height={16}
-                    priority
-                  />
-                </div>
-              </h2>
-              <p>Deploy a zkApp to Berkeley Testnet</p>
-            </a>
-          </div>
+          <button
+            className={styles.tagline}
+            onClick={async () => {
+              // @ts-ignore
+              let accounts = await window.mina.requestAccounts();
+              const { Mina, PublicKey, isReady, PrivateKey, fetchAccount, AccountUpdate } = await import('snarkyjs');
+              const { Add } = await import('../../../contracts/build/src/Add');
+              await isReady;
+              console.log('SnarkyJS loaded');
+              const Berkeley = Mina.Network(
+                'https://proxy.berkeley.minaexplorer.com/graphql'
+              );
+              Mina.setActiveInstance(Berkeley);
+              const transactionFee = 100_000_000;
+              let { verificationKey } = await Add.compile()
+              const deployAddress = PublicKey.fromBase58(accounts[0])
+              const zkApp = new Add(deployAddress)
+
+              let trans = await Mina.transaction(
+                { sender: deployAddress, fee: transactionFee },
+                () => {
+                  AccountUpdate.fundNewAccount(deployAddress);
+                  zkApp.deploy({ verificationKey });
+                }
+              );
+
+              await trans.prove().catch(err => err)
+              let partiesJsonUpdate = trans.toJSON();
+              // @ts-ignore
+              if (window.mina) {
+                // @ts-ignore
+                let partyResult = await window.mina.sendTransaction({
+                  transaction: partiesJsonUpdate,
+                  feePayer: {
+                    memo: "zk deploy"
+                  },
+                }).catch()
+
+                console.log("signPartyButton==1", partyResult);
+              }
+            }}
+          >
+            deploy contract
+          </button>
         </main>
-      </GradientBG>
+      </GradientBG >
     </>
   );
 }

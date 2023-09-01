@@ -67,6 +67,7 @@ await Add.compile();
 try {
   // call update() and send transaction
   console.log('build transaction and create proof...');
+  console.log('build xxxxx ----->', zkApp.num.get());
   let tx = await Mina.transaction({ sender: feepayerAddress, fee }, () => {
     zkApp.update();
   });
